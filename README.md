@@ -59,3 +59,9 @@ A **CTG Heart Failure Monitoring System** that processes Heart Rate Variability 
 - [Madonna Mosaad](https://github.com/madonna-mosaad)
 
 ---
+## Contact
+
+For any questions or suggestions, feel free to reach out:
+
+- **Name**: Yassien Tawfik
+- **Email**: Yassien.m.m.tawfik@gmail.com
