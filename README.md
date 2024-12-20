@@ -6,7 +6,7 @@ A **CTG Heart Failure Monitoring System** that processes Heart Rate Variability 
 
 ## Demo Video
 
-<video src="https://github.com/user-attachments/assets/d093831c-66a5-4aaf-a55d-279eeb86a80f" controls="controls" style="max-width: 100%;"></video>
+<video src="https://github.com/user-attachments/assets/81f050d4-e398-4a57-8f2a-261e20b89963" controls="controls" style="max-width: 100%;"></video>
 
 ---
 
@@ -51,10 +51,11 @@ A **CTG Heart Failure Monitoring System** that processes Heart Rate Variability 
 
 ---
 
-## Team Shout-Out 🎉
+## Shout-Out to our team
 
-Special thanks to our amazing team: [Your Name], [Team Member 1], [Team Member 2].  
+- [Yassien Tawfik](https://github.com/YassienTawfikk)
+- [Mazen Marwan](https://github.com/Mazenmarwan023)
+- [Nancy Mahmoud](https://github.com/nancymahmoud1)
+- [Madonna Mosaad](https://github.com/madonna-mosaad)
 
 ---
-
-Once the video and images are uploaded, replace the placeholders with the actual URLs. Let me know if you need further edits!
