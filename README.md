@@ -10,7 +10,6 @@ A **CTG Heart Failure Monitoring System** that processes Heart Rate Variability 
 
 ---
 
-
 ## HRV Analysis
 
 <img width="1280" alt="Screen Shot 2024-12-20 at 2 01 11 AM" src="https://github.com/user-attachments/assets/6c8a327b-7ff4-43be-8d97-aa36962327a5" />
