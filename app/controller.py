@@ -126,7 +126,7 @@ class MainController:
             self.stop_simulation()
             self.enable_sim_controls(False) # Disable controls during load
 
-        filepath, _ = QFileDialog.getOpenFileName(self.MainWindow, "Open Signal File", "/Users/yassientawfik/Desktop/datasets/", "CSV Files (*.csv);;All Files (*)")
+        filepath, _ = QFileDialog.getOpenFileName(self.MainWindow, "Open Signal File", "/static/datasets/", "CSV Files (*.csv);;All Files (*)")
         if filepath:
             self.logger.info(f"Uploading file: {filepath}")
             self.ui.upload_signal_button.setEnabled(False)
