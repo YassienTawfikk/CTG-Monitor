@@ -2,16 +2,25 @@ import numpy as np
 from scipy.signal import butter, filtfilt, find_peaks
 
 
+from app.config import Config
+from scipy.signal import butter, filtfilt, find_peaks, lfilter
+
 class HRV_analysis:
-    def __init__(self, data, fs=500):
+    def __init__(self, data, fs):
         self.data = data
         self.fs = fs  # Sampling frequency
         self.filtered_data = None
         self.rr_intervals = None
         self.peaks = None
+        self.config = Config().FILTER
+        self.pt_config = Config().PEAK_DETECTION
 
-    def apply_filter(self, lowcut=1, highcut=50, order=5):
+    def apply_filter(self, lowcut=None, highcut=None, order=None):
         """Apply a Butterworth band-pass filter to the ECG data and store it."""
+        if lowcut is None: lowcut = self.config['LOWCUT']
+        if highcut is None: highcut = self.config['HIGHCUT']
+        if order is None: order = self.config['ORDER']
+
         nyq = 0.5 * self.fs
         low = lowcut / nyq
         high = highcut / nyq
@@ -19,13 +28,64 @@ class HRV_analysis:
         self.filtered_data = filtfilt(b, a, self.data)
         return self.filtered_data
 
+    def pan_tompkins_qrs(self, signal):
+        """
+        Simplified Pan-Tompkins QRS detection algorithm.
+        1. Bandpass Filter (Already done in apply_filter, but PT specifies 5-15Hz. We stick to user config)
+        2. Differentiate
+        3. Squaring
+        4. Moving Window Integration
+        5. Peak detection
+        """
+        # 1. Differentiate
+        # Difference equation: y[n] = (1/8) * (-x[n-2] - 2x[n-1] + 2x[n+1] + x[n+2])
+        # Using numpy simplified diff for now:
+        diff_signal = np.diff(signal)
+        
+        # 2. Squaring
+        squared_signal = diff_signal ** 2
+        
+        # 3. Moving Window Integration
+        window_width = int(0.150 * self.fs) # 150 ms window
+        integrated_signal = np.convolve(squared_signal, np.ones(window_width)/window_width, mode='same')
+        
+        # 4. Fiducial Mark (Peak Detection)
+        # Adaptive thresholding is complex, using scipy find_peaks with parameters based on integration
+        # Min distance approx 200 ms (highest bpm 300) -> 0.2 * fs
+        min_dist = int((self.pt_config.get('MIN_DIST_MS', 300) / 1000) * self.fs)
+        
+        # Find peaks in integrated signal to find rough QRS locations
+        # Height threshold: somewhat arbitrary, maybe 20% of max integration
+        height_threshold = np.mean(integrated_signal) # or np.max(integrated_signal) * 0.2
+        
+        peaks_indices, _ = find_peaks(integrated_signal, distance=min_dist, height=height_threshold)
+        
+        # 5. Refinement: Find exact peak in original filtered signal near the integrated peaks
+        # The integrated peak is slightly delayed. We look back a bit.
+        search_window = int(0.150 * self.fs) # Look +/- 100ms
+        refined_peaks = []
+        
+        for idx in peaks_indices:
+            start = max(0, idx - search_window)
+            end = min(len(signal), idx + search_window)
+            if start < end:
+                local_max = np.argmax(signal[start:end])
+                refined_peaks.append(start + local_max)
+        
+        return np.unique(np.array(refined_peaks))
+
     def calculate_hrv(self):
         """Calculate HRV by detecting R-peaks and returning RR intervals in seconds."""
         if self.filtered_data is None:
             raise ValueError("Filtered data is not available. Please apply filter first.")
 
-        self.peaks, _ = find_peaks(self.filtered_data, height=np.mean(self.filtered_data))
-        self.rr_intervals = np.diff(self.peaks) / self.fs
+        # Use Pan-Tompkins inspired method
+        self.peaks = self.pan_tompkins_qrs(self.filtered_data)
+        
+        if len(self.peaks) < 2:
+            self.rr_intervals = np.array([])
+        else:
+            self.rr_intervals = np.diff(self.peaks) / self.fs
 
         return self.rr_intervals
 

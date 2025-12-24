@@ -1,0 +1,20 @@
+{
+    "FS": 500,
+    "FILTER": {
+        "LOWCUT": 1,
+        "HIGHCUT": 50,
+        "ORDER": 5
+    },
+    "CLINICAL_THRESHOLDS": {
+        "ACCEL_BPM": 15,
+        "ACCEL_SEC": 15,
+        "DECEL_BPM": 15,
+        "DECEL_SEC": 15,
+        "BASELINE_LOW": 110,
+        "BASELINE_HIGH": 160
+    },
+    "PEAK_DETECTION": {
+        "MIN_DIST_MS": 300,
+        "INTEGRATION_WINDOW_MS": 150
+    }
+}
