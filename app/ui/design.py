@@ -53,7 +53,6 @@ class Ui_MainWindow(object):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1280, 800)
         font = QtGui.QFont()
-        font.setFamily("Segoe UI") # More standard modern font across OSs usually active or fallback
         MainWindow.setFont(font)
         MainWindow.setStyleSheet(MAIN_WINDOW_STYLE)
 
@@ -78,7 +77,6 @@ class Ui_MainWindow(object):
 
         self.title_label = QtWidgets.QLabel()
         font = QtGui.QFont()
-        font.setFamily("Segoe UI")
         font.setPointSize(22)
         font.setBold(True)
         self.title_label.setFont(font)
@@ -143,7 +141,6 @@ class Ui_MainWindow(object):
         self.fs_input.setStyleSheet(SPINBOX_STYLE)
         self.fs_input.setMinimumHeight(40)
         font = QtGui.QFont()
-        font.setFamily("Segoe UI")
         font.setPointSize(11)
         self.fs_input.setFont(font)
         
@@ -295,7 +292,6 @@ class Ui_MainWindow(object):
         button = QtWidgets.QPushButton()
         button.setMinimumHeight(40)
         font = QtGui.QFont()
-        font.setFamily("Segoe UI")
         font.setPointSize(11)
         font.setBold(is_bold)
         button.setFont(font)
@@ -331,7 +327,6 @@ class Ui_MainWindow(object):
     def addGroupBox(self, object_name, title, isGraph=False):
         group_box = QtWidgets.QGroupBox()
         font = QtGui.QFont()
-        font.setFamily("Segoe UI")
         group_box.setFont(font)
         group_box.setStyleSheet(GROUP_BOX_STYLE)
         group_box.setTitle(title)

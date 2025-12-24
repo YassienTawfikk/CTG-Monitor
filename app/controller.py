@@ -8,6 +8,7 @@ from app.ui.design import Ui_MainWindow
 from app.hrv_analysis import HRV_analysis
 from app.config import Config
 from app.logger import setup_logging, get_logger
+from app.cleanup import clean_project_artifacts
 from app.workers import FileLoadWorker, AnalysisWorker
 import os
 
@@ -74,7 +75,16 @@ class MainController:
         self.ui.upload_signal_button.clicked.connect(self.upload_signal)
 
     def closeApp(self):
-        """Close the application."""
+        """Close the application and clean up artifacts."""
+        try:
+            # Clean up artifacts in the project root
+            # Assuming project root is two levels up from controller.py (app/controller.py)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            self.logger.info(f"Starting cleanup in: {project_root}")
+            clean_project_artifacts(project_root)
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+            
         self.app.quit()
 
     def toggle_mode(self):
@@ -126,7 +136,7 @@ class MainController:
             self.stop_simulation()
             self.enable_sim_controls(False) # Disable controls during load
 
-        filepath, _ = QFileDialog.getOpenFileName(self.MainWindow, "Open Signal File", "/static/datasets/", "CSV Files (*.csv);;All Files (*)")
+        filepath, _ = QFileDialog.getOpenFileName(self.MainWindow, "Open Signal File", "static/datasets/", "CSV Files (*.csv);;All Files (*)")
         if filepath:
             self.logger.info(f"Uploading file: {filepath}")
             self.ui.upload_signal_button.setEnabled(False)

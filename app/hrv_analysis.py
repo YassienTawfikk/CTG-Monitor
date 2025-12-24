@@ -138,7 +138,7 @@ class HRV_analysis:
             raise ValueError("RR intervals are not available. Please calculate HRV first.")
 
         summary = {
-            "Mean RR Interval (ms)": round(self.calculate_mean_rr() * 10_000, 2),  # Scale to ms and round
+            "Mean RR Interval (ms)": round(self.calculate_mean_rr() * 1_000, 2),  # Scale to ms and round
             "SDNN (ms)": round(self.calculate_sdnn() * 1_000, 2),  # Scale to ms and round
             "RMSSD (ms)": round(self.calculate_rmssd() * 1_000, 2),  # Scale to ms and round
             "pNN50 (%)": round(self.calculate_pnn50(), 2),  # Round percentage
