@@ -3,6 +3,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QFileDialog
 import numpy as np
 from scipy.signal import savgol_filter
+import pyqtgraph as pg
 
 from app.ui.design import Ui_MainWindow
 from app.hrv_analysis import HRV_analysis
@@ -89,21 +90,18 @@ class MainController:
 
     def toggle_mode(self):
         """Toggle mode in the design."""
-        # Clear plots and reset simulation before switching
         # Stop simulation first to ensure timers stop
         if hasattr(self, 'stop_simulation'):
             self.stop_simulation()
             
         self.ui.clear_all_plots()
-        self.reset_data() # Clear all signal data to start fresh in new mode
+        
+        # self.reset_data() # REMOVED: Do not clear data on mode toggle to allow persistence
         self.enable_sim_controls(False)
         
         self.ui.toggle_mode_design()
     
-        # Update Speed Options based on mode
-        # HRV: 1x, 2x, 5x, 10x
-        # FHR: 10x, 20x, 50x, 100x
-        # Access buttons via group ID (0, 1, 2, 3 assumed order of creation)
+        # Update Speed Options
         btn0 = self.ui.speed_button_group.button(0)
         btn1 = self.ui.speed_button_group.button(1)
         btn2 = self.ui.speed_button_group.button(2)
@@ -114,16 +112,44 @@ class MainController:
             if btn1: btn1.setText("2x")
             if btn2: btn2.setText("5x")
             if btn3: btn3.setText("10x")
+            
+            # If switching TO HRV mode, check if we have data to show
+            if hasattr(self, 'full_filtered_data'):
+                # We have HRV data, restore view
+                self.update_plots_static()
+                self.enable_sim_controls(True)
+                
         else:
             if btn0: btn0.setText("10x")
             if btn1: btn1.setText("20x")
             if btn2: btn2.setText("50x")
             if btn3: btn3.setText("100x")
             
+            # If switching TO FHR mode, check if we have data to show
+            if hasattr(self, 'full_fhr_data'):
+                 # We have FHR data, restore view
+                 # self.ui.clear_all_plots() # Already cleared above
+                 
+                 # Ensure Auto Range is enabled for FHR (Fix 1)
+                 for widget in [self.ui.plot_widget_01, self.ui.plot_widget_02, self.ui.plot_widget_03, self.ui.plot_widget_04]:
+                     widget.enableAutoRange(axis='x', enable=True)
+                     widget.enableAutoRange(axis='y', enable=True)
+
+                 # Recalculate or restore STV/Accel if needed (should be stored)
+                 # Replot
+                 self.plot_fhr_and_uc(self.current_x_data, self.full_fhr_data, self.full_uc_data)
+                 if hasattr(self, 'full_stv_data'):
+                     # We need to slice time for STV
+                     time_stv = self.current_x_data[1:] if len(self.current_x_data) > 1 else self.current_x_data
+                     self.ui.plot_widget_02.plot(time_stv[:len(self.full_stv_data)], self.full_stv_data, title="STV")
+                 
+                 self.plot_accel_decel(self.current_x_data, self.full_fhr_data, self.fs_fhr)
+                 
+                 self.enable_sim_controls(True)
+            
         # Reset speed to default (first button)
         if btn0:
             btn0.setChecked(True)
-            # Trigger logic manually since setChecked doesn't emit clicked signal
             first_btn_text = btn0.text()
             self.playback_speed = float(first_btn_text.replace('x', ''))
             self.logger.info(f"Playback speed reset to: {self.playback_speed}x")
@@ -481,65 +507,77 @@ class MainController:
         self.ui.upload_signal_button.setEnabled(True)
         self.ui.upload_signal_button.setText("Upload Signal")
         
+        # RESET AXES Universally on New File Load
+        # This ensures a clean slate (auto-scaled) for the new data
+        for widget in [self.ui.plot_widget_01, self.ui.plot_widget_02, self.ui.plot_widget_03, self.ui.plot_widget_04]:
+             widget.enableAutoRange(axis='x', enable=True)
+             widget.enableAutoRange(axis='y', enable=True)
+             widget.autoRange() 
+        
+        # New File Loaded -> Reset previous data cleanly before populating new
+        self.reset_data()
+
         self.data_fs = fs # Set global FS for simulation
         
-        # Update FS input if calculated differently
-        if fs != self.ui.fs_input.value():
-            # If calculated FS is significantly different, assume input was default/guess and update it
-            if abs(fs - self.ui.fs_input.value()) > 0.1:
-                self.ui.fs_input.setValue(int(fs))
-                self.logger.info(f"Updated UI FS input to calculated: {fs}")
-                # Optional: Don't annoy user with popup every time if logic is solid,
-                # or only popup if it was a big surprise.
-                # Keeping popup for now as confirmation.
-                # User requested removal:
-                # QtWidgets.QMessageBox.information(
-                #     self.MainWindow, 
-                #     "Sampling Rate Detected", 
-                #     f"Detected sampling rate: {fs:.1f} Hz based on time data.\nPlayback speed adjusted."
-                # )
+        # Update FS input
+        if abs(fs - self.ui.fs_input.value()) > 0.1:
+            self.ui.fs_input.setValue(int(fs))
+            self.logger.info(f"Updated UI FS input to calculated: {fs}")
+            
+        # Store Time - Common to all
+        if time is None:
+             # Fallback if somehow worker didn't generate it (unlikely)
+             length = 0
+             if signal is not None: length = len(signal)
+             elif fhr is not None: length = len(fhr)
+             time = np.arange(length) / fs
+        
+        self.current_x_data = time
+        
+        # Store ECG Signal if present
+        if signal is not None:
+             self.full_raw_y = signal
+        
+        # Store FHR Components if present
+        if fhr is not None:
+             self.full_fhr_data = fhr
+             self.current_fhr_time = time
+             self.fs_fhr = fs
+             
+             # Calculate derived FHR metrics immediately
+             self.full_stv_data = np.abs(np.diff(fhr))
+             self.full_accel_regions, self.full_decel_regions = self.identify_accel_decel(fhr, fs)
+        
+        if uc is not None:
+             self.full_uc_data = uc
 
+        # --- View Logic ---
         if self.ui.is_current_mode_HRV:
-             if signal is None:
-                 self.show_error("Could not detect ECG signal column.")
+             if signal is None and fhr is not None:
+                 # Loaded FHR file while in HRV mode?
+                 # Warn user or Switch mode? 
+                 # Let's warn but keep data. 
+                 self.show_error("No ECG signal found in file. Switch to FHR mode to view FHR data.")
+                 # Or we could auto-switch? "self.toggle_mode()" ? 
+                 # User might prefer manual.
                  return
              
-             # Create X data if time is missing
-             if time is None:
-                 time = np.arange(len(signal)) / fs
-             
-             self.current_x_data = time
-             self.full_raw_y = signal # Store raw for sim
-             
-             self.plot_data(time, signal, fs)
+             if signal is not None:
+                self.plot_data(time, signal, fs)
 
         else: # FHR Mode
-             if fhr is None:
-                  self.show_error("Could not detect FHR column.")
-                  return
-             
-             if time is None:
-                 time = np.arange(len(fhr)) # Fallback if no time
-                 
-             self.current_x_data = time
-             self.current_fhr_time = time
-             self.full_fhr_data = fhr
-             self.full_uc_data = uc
-             self.fs_fhr = fs
-
-             self.ui.clear_all_plots()
-             
-             # Store STV for sim
-             self.full_stv_data = np.abs(np.diff(fhr))
-             
-             self.plot_fhr_and_uc(time, fhr, uc)
-             self.plot_stv(time, fhr)
-             self.plot_accel_decel(time, fhr, fs)
-             
-             self.enable_sim_controls(True) # Enable manually since FHR doesn't use worker for analysis yet
-             
-             # Pre-calculate Accel/Decel for efficient plotting/simulation
-             self.full_accel_points, self.full_decel_points = self.identify_accel_decel(fhr, fs)
+            if fhr is None and signal is not None:
+                self.show_error("No FHR data found in file. Switch to HRV mode to view ECG.")
+                return
+            
+            if fhr is not None:
+                self.ui.clear_all_plots()
+                self.plot_fhr_and_uc(time, fhr, uc)
+                self.plot_stv(time, fhr)
+                self.plot_accel_decel(time, fhr, fs)
+            self.enable_sim_controls(True)
+        
+        self.auto_range()
 
     def on_worker_error(self, message):
         self.ui.upload_signal_button.setEnabled(True)
@@ -575,8 +613,8 @@ class MainController:
             self.ui.plot_widget_01.enableAutoRange(axis='y', enable=False) # Disable auto-scale to keep it fixed
             
             if self.ui.is_current_mode_HRV:
-                 # Trigger Analysis
-                 self.start_hrv_analysis(x_data, y_data, fs)
+                # Trigger Analysis
+                self.start_hrv_analysis(x_data, y_data, fs)
 
         except Exception as e:
             self.show_error(f"Failed to plot data: {e}")
@@ -671,6 +709,15 @@ class MainController:
 
         # Green line for FHR
         self.ui.plot_widget_03.plot(time, uc, pen='w')  # Blue line for UC
+        
+        # Helper: Force auto-range fit after plotting new data
+        self.auto_range()
+
+    def auto_range(self):
+        self.ui.plot_widget_01.autoRange()
+        self.ui.plot_widget_02.autoRange()
+        self.ui.plot_widget_03.autoRange()
+        self.ui.plot_widget_04.autoRange()
 
     def plot_stv(self, time, fhr):
         """
@@ -693,29 +740,12 @@ class MainController:
         # Allow plotting subset if current_time is specified
         
         # If we haven't pre-calculated (static mode or first load), do it now
-        if not hasattr(self, 'full_accel_points'):
-             self.full_accel_points, self.full_decel_points = self.identify_accel_decel(fhr, fs)
+        if not hasattr(self, 'full_accel_regions'):
+             self.full_accel_regions, self.full_decel_regions = self.identify_accel_decel(fhr, fs)
         
-        accel_indices = self.full_accel_points
-        decel_indices = self.full_decel_points
+        accel_regions = self.full_accel_regions
+        decel_regions = self.full_decel_regions
 
-        # Filter if simulation
-        if current_time is not None:
-             # Assuming indices correspond to time array roughly if time is linear
-             # If time is provided, we can map time to index or check time values
-             # But here we have indices.
-             # Convert current_time to index? 
-             # Simpler: 'time' array is passed. 
-             # We just need to filter indices that are within the current time scope
-             # But wait, plot takes x,y.
-             pass
-             
-        # Plot FHR as a thin line (Background for markers)
-        # self.ui.plot_widget_04.plot(time, fhr, pen={'color': 'w', 'width': 1}) # Already plotted in update_sim usually? 
-        # In static mode, yes. In sim mode, we plot line separately. 
-        # Let's assume this function handles markers mainly.
-        # But legacy call included line. Let's keep line for static.
-        
         limit_idx = len(time)
         if current_time is not None:
              # Find limit for simulation using searchsorted
@@ -724,32 +754,35 @@ class MainController:
         # Plot FHR trace (Background)
         # Even if limit_idx is small, we plot what we have
         if limit_idx > 0:
-             self.ui.plot_widget_04.plot(time[:limit_idx], fhr[:limit_idx], pen={'color': 'w', 'width': 1})
+             self.ui.plot_widget_04.plot(time[:limit_idx], fhr[:limit_idx], pen={'color': 'w', 'width': 1, 'style': QtCore.Qt.DashLine}, name="FHR")
 
-        # Highlight accelerations in green
-        if len(accel_indices) > 0:
-            valid_accel = accel_indices
-            if current_time is not None:
-                 valid_accel = [i for i in accel_indices if i < limit_idx]
+        # Highlight accelerations in green (Shaded Regions)
+        for start, end in accel_regions:
+            if start >= limit_idx:
+                continue
             
-            if len(valid_accel) > 0:
-                 # Ensure indices are within bounds
-                 valid_accel = [i for i in valid_accel if i < limit_idx and i < len(time)]
-                 if len(valid_accel) > 0:
-                    self.ui.plot_widget_04.plot(time[valid_accel], fhr[valid_accel],
-                                            pen=None, symbol='o', symbolBrush='g', symbolSize=8, name="Accel")
+            # Clip end if simulation is running
+            visible_end = min(end, limit_idx)
+            
+            if visible_end > start:
+                 # Add shaded region
+                 t_start = time[start]
+                 t_end = time[visible_end - 1]
+                 region = pg.LinearRegionItem([t_start, t_end], brush=(0, 255, 0, 50), movable=False)
+                 self.ui.plot_widget_04.addItem(region)
 
-        # Highlight decelerations in red
-        if len(decel_indices) > 0:
-            valid_decel = decel_indices
-            if current_time is not None:
-                 valid_decel = [i for i in decel_indices if i < limit_idx]
-
-            if len(valid_decel) > 0:
-                 valid_decel = [i for i in valid_decel if i < limit_idx and i < len(time)]
-                 if len(valid_decel) > 0:
-                    self.ui.plot_widget_04.plot(time[valid_decel], fhr[valid_decel],
-                                            pen=None, symbol='o', symbolBrush='r', symbolSize=8, name="Decel")
+        # Highlight decelerations in red (Shaded Regions)
+        for start, end in decel_regions:
+            if start >= limit_idx:
+                continue
+            
+            visible_end = min(end, limit_idx)
+            
+            if visible_end > start:
+                 t_start = time[start]
+                 t_end = time[visible_end - 1]
+                 region = pg.LinearRegionItem([t_start, t_end], brush=(255, 0, 0, 50), movable=False)
+                 self.ui.plot_widget_04.addItem(region)
 
     def identify_accel_decel(self, fhr, fs): # Added fs argument
         accel_indices = []
@@ -778,6 +811,10 @@ class MainController:
         # Let's use the rolling baseline logic already somewhat present or improved.
         
         baseline = np.median(fhr) # Simple baseline for now or use the savgol smoothed one as moving baseline
+        
+        self.logger.info(f"Signal Stats - Min: {np.min(fhr):.1f}, Max: {np.max(fhr):.1f}, Median/Baseline: {baseline:.1f}")
+        self.logger.info(f"Detection Thresholds - Accel > {baseline + accel_bpm:.1f}, Decel < {baseline - decel_bpm:.1f}")
+
         # FIGO says baseline is average over 10 min. 
         # For simplicity in this logic fix, we check sustained deviation from a local baseline.
         
@@ -806,15 +843,7 @@ class MainController:
         accel_regions = get_continuous_regions(is_accel, accel_samples)
         decel_regions = get_continuous_regions(is_decel, decel_samples)
 
-        # Return indices for plotting (e.g., center of event) or all points
-        # The previous code returned a list of points. Let's return all points in events for highlighting.
-        
-        accel_points = []
-        for start, end in accel_regions:
-            accel_points.extend(range(start, end))
-            
-        decel_points = []
-        for start, end in decel_regions:
-            decel_points.extend(range(start, end))
+        self.logger.info(f"Identified Accel Regions: {len(accel_regions)}. Threshold > {baseline + accel_bpm:.1f} bpm")
+        self.logger.info(f"Identified Decel Regions: {len(decel_regions)}. Threshold < {baseline - decel_bpm:.1f} bpm")
 
-        return accel_points, decel_points
+        return accel_regions, decel_regions

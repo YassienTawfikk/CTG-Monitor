@@ -12,8 +12,7 @@ The system combines advanced signal processing algorithms with an intuitive, med
 
 ## Key Features
 
-https://github.com/user-attachments/assets/bc54996a-2a32-4933-bb69-18c26dfe5d60
-
+<https://github.com/user-attachments/assets/bc54996a-2a32-4933-bb69-18c26dfe5d60>
 
 ### 1. Dual Analysis Modes
 

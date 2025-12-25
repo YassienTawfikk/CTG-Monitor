@@ -12,10 +12,10 @@ DEFAULT_CONFIG = {
         "ORDER": 5
     },
     "CLINICAL_THRESHOLDS": {
-        "ACCEL_BPM": 15,
-        "ACCEL_SEC": 15,
-        "DECEL_BPM": 15,
-        "DECEL_SEC": 15,
+        "ACCEL_BPM": 2,
+        "ACCEL_SEC": 5,
+        "DECEL_BPM": 2,
+        "DECEL_SEC": 5,
         "BASELINE_LOW": 110,
         "BASELINE_HIGH": 160
     },

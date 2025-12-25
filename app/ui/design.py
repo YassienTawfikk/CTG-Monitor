@@ -3,21 +3,21 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 
 # Define style variables
 # Define style variables
-MAIN_WINDOW_STYLE = "background-color:#1e1e1e;" # Slightly lighter dark for modern feel
+MAIN_WINDOW_STYLE = "background-color:#001e1e;" # Deep Teal/Green background
 BUTTON_STYLE = ("QPushButton {"
                 "    color: white;"
-                "    background-color: #2c3e50;"
-                "    border: 2px solid #34495e;"
+                "    background-color: #004d40;"
+                "    border: 2px solid #00695c;"
                 "    border-radius: 8px;"
                 "    padding: 8px;"
                 "    font-weight: bold;"
                 "}"
                 "QPushButton:hover {"
-                "    background-color: #34495e;"
-                "    border-color: #5d6d7e;"
+                "    background-color: #00695c;"
+                "    border-color: #2ecc71;"
                 "}"
                 "QPushButton:pressed {"
-                "    background-color: #1a252f;"
+                "    background-color: #00332a;"
                 "}")
 
 QUIT_BUTTON_STYLE = ("QPushButton {"
@@ -102,8 +102,8 @@ class Ui_MainWindow(object):
         # SpinBox Styling with Arrows
         SPINBOX_STYLE = ("QSpinBox {"
                          "    color: white;"
-                         "    background-color: #2c3e50;"
-                         "    border: 2px solid #34495e;"
+                         "    background-color: #004d40;"
+                         "    border: 2px solid #00695c;"
                          "    border-radius: 5px;"
                          "    padding: 5px;"
                          "    font-weight: bold;"
@@ -112,22 +112,22 @@ class Ui_MainWindow(object):
                          "    subcontrol-origin: border;"
                          "    subcontrol-position: top right;"
                          "    width: 20px;"
-                         "    border-left: 1px solid #34495e;"
-                         "    border-bottom: 1px solid #34495e;"
+                         "    border-left: 1px solid #00695c;"
+                         "    border-bottom: 1px solid #00695c;"
                          "    border-top-right-radius: 5px;"
-                         "    background-color: #2c3e50;"
+                         "    background-color: #004d40;"
                          "}"
                          "QSpinBox::down-button {"
                          "    subcontrol-origin: border;"
                          "    subcontrol-position: bottom right;"
                          "    width: 20px;"
-                         "    border-left: 1px solid #34495e;"
-                         "    border-top: 1px solid #34495e;"
+                         "    border-left: 1px solid #00695c;"
+                         "    border-top: 1px solid #00695c;"
                          "    border-bottom-right-radius: 5px;"
-                         "    background-color: #2c3e50;"
+                         "    background-color: #004d40;"
                          "}"
                          "QSpinBox::up-button:hover, QSpinBox::down-button:hover {"
-                         "    background-color: #34495e;"
+                         "    background-color: #00695c;"
                          "}"
                          "QSpinBox::up-arrow {"
                          "    image: url(static/images/arrow_up.png);"
@@ -175,17 +175,18 @@ class Ui_MainWindow(object):
         
         SEGMENT_BTN_STYLE = ("QPushButton {"
                              "    color: white;"
-                             "    background-color: #2c3e50;"
-                             "    border: 2px solid #34495e;"
+                             "    background-color: #004d40;"
+                             "    border: 2px solid #00695c;"
                              "    padding: 5px 10px;"
                              "    font-weight: bold;"
                              "}"
                              "QPushButton:checked {"
-                             "    background-color: #3498db;"
-                             "    border-color: #3498db;"
+                             "    background-color: #2ecc71;"
+                             "    border-color: #2ecc71;"
+                             "    color: #00332a;"
                              "}"
                              "QPushButton:hover {"
-                             "    background-color: #34495e;"
+                             "    background-color: #00695c;"
                              "}"
                              "QPushButton:first {"
                              "    border-top-left-radius: 8px;"
@@ -304,7 +305,8 @@ class Ui_MainWindow(object):
 
     def create_metric_card(self, title, value, key_id):
         frame = QtWidgets.QFrame()
-        frame.setStyleSheet("background-color: #2c3e50; border-radius: 8px; border: 1px solid #34495e;")
+        frame.setStyleSheet("background-color: #004d40; border-radius: 8px; border: 1px solid #00695c;")
+
         layout = QtWidgets.QVBoxLayout(frame)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(2)

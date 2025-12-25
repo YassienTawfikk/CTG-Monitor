@@ -28,99 +28,74 @@ class FileLoadWorker(QThread):
             uc = None
             calculated_fs = self.fs
 
-            if self.mode == "HRV":
-                # Robust column detection for ECG
-                if 'time' in columns:
-                    time = data.iloc[:, columns.index('time')].values
-                else:
-                    # Attempt to guess time if 1st column looks like it, or generate it
-                    try:
-                         # Heursitic: if col 0 is monotonic increasing, it's likely time
-                         if data.iloc[:, 0].is_monotonic_increasing:
-                             time = data.iloc[:, 0].values
-                    except:
-                        pass
+            # --- 1. Universal Column Detection ---
+            
+            # Time
+            if 'time' in columns:
+                time = data.iloc[:, columns.index('time')].values
+            else:
+                # Heuristic: if col 0 is monotonic increasing, it's likely time
+                try:
+                    if data.iloc[:, 0].is_monotonic_increasing:
+                        time = data.iloc[:, 0].values
+                except:
+                    pass
 
-                # Signal detection
-                potential_signal_cols = ['signal', 'ecg', 'val', 'value', 'v', 'lead']
-                signal_idx = -1
-                for col in potential_signal_cols:
-                    if col in columns:
-                        signal_idx = columns.index(col)
-                        break
-                
-                if signal_idx == -1:
-                    # Fallback: 2nd column if exists, else 1st if no time
-                    if len(columns) >= 2:
-                        signal_idx = 1
-                    else:
-                        signal_idx = 0
-                
+            # ECG Signal
+            potential_signal_cols = ['signal', 'ecg', 'val', 'value', 'v', 'lead']
+            signal_idx = -1
+            for col in potential_signal_cols:
+                if col in columns:
+                    signal_idx = columns.index(col)
+                    break
+            
+            if signal_idx != -1:
                 signal = data.iloc[:, signal_idx].values
+            else:
+                 # Fallback logic only if we are in HRV mode and desperate? 
+                 # Or generally checks 2nd column if not time?
+                 # Let's be careful not to mistake FHR for signal.
+                 if 'fhr' not in columns and len(columns) >= 2: 
+                     # Only fallback if FHR is not explicitly present, confirming this is likely an ECG file
+                     signal_idx = 1
+                     signal = data.iloc[:, signal_idx].values
 
-                # Calculate FS if time is available
-                # PRIORITIZE calculated FS from time column over the default/input FS
-                if time is not None and len(time) > 1:
-                    try:
-                        # Median diff to be robust against dropped samples
-                        diffs = np.diff(time)
-                        # Remove zeroes or negative diffs just in case
-                        valid_diffs = diffs[diffs > 0]
-                        if len(valid_diffs) > 0:
-                            median_diff = np.median(valid_diffs)
-                            if median_diff > 0:
-                                new_fs = 1.0 / median_diff
-                                logger.info(f"Calculated FS from data: {new_fs} (Input was: {calculated_fs})")
-                                calculated_fs = new_fs
-                    except Exception as e:
-                        logger.warning(f"Could not calculate FS from time: {e}")
+            # FHR & UC
+            if 'fhr' in columns:
+                fhr = data.iloc[:, columns.index('fhr')].values
+            
+            if 'uc' in columns:
+                uc = data.iloc[:, columns.index('uc')].values
 
-            else: # FHR Mode
-                # FHR column detection is stricter as per requirements but we can be nice
-                if 'time' in columns:
-                    time = data.iloc[:, columns.index('time')].values
-                
-                if 'fhr' in columns:
-                    fhr = data.iloc[:, columns.index('fhr')].values
-                
-                if 'uc' in columns:
-                    uc = data.iloc[:, columns.index('uc')].values
-                
-                if fhr is None:
-                    raise ValueError("FHR column not found in CSV")
+            # --- 2. FS Calculation ---
+            # Prioritize calculated FS from time column
+            if time is not None and len(time) > 1:
+                try:
+                    diffs = np.diff(time)
+                    valid_diffs = diffs[diffs > 0]
+                    if len(valid_diffs) > 0:
+                        median_diff = np.median(valid_diffs)
+                        if median_diff > 0:
+                            new_fs = 1.0 / median_diff
+                            logger.info(f"Calculated FS from data: {new_fs} (Input/Default was: {calculated_fs})")
+                            calculated_fs = new_fs
+                except Exception as e:
+                    logger.warning(f"Could not calculate FS from time: {e}")
 
-                # Calculate FS if time is available
-                # PRIORITIZE calculated FS from time column over the default/input FS
-                if time is not None and len(time) > 1:
-                    try:
-                        # Median diff to be robust against dropped samples
-                        diffs = np.diff(time)
-                        # Remove zeroes or negative diffs just in case
-                        valid_diffs = diffs[diffs > 0]
-                        if len(valid_diffs) > 0:
-                            median_diff = np.median(valid_diffs)
-                            if median_diff > 0:
-                                new_fs = 1.0 / median_diff
-                                logger.info(f"Calculated FS from data: {new_fs} (Input was: {calculated_fs})")
-                                calculated_fs = new_fs
-                    except Exception as e:
-                        logger.warning(f"Could not calculate FS from time: {e}")
-
-            if calculated_fs is None:
+            if calculated_fs is None or calculated_fs <= 0:
                 calculated_fs = Config().FS # Default fallback
 
-            # --- Data Expansion for Simulation ---
-            # Ensure we have a minimum duration for simulation (e.g. 5 mins)
+            # --- 3. Data Expansion for Simulation ---
             min_duration = Config().MIN_SIMULATION_DURATION_SEC
             
-            # Determine current duration
-            current_duration = 0
+            # Determine current max duration from any available signal
             current_len = 0
             if signal is not None:
                 current_len = len(signal)
             elif fhr is not None:
-                current_len = len(fhr)
+                 current_len = max(current_len, len(fhr))
             
+            current_duration = 0
             if current_len > 0 and calculated_fs > 0:
                 current_duration = current_len / calculated_fs
 
@@ -128,32 +103,27 @@ class FileLoadWorker(QThread):
                 repeats = int(np.ceil(min_duration / current_duration))
                 logger.info(f"Expanding data: Duration {current_duration:.1f}s < {min_duration}s. Repeating {repeats} times.")
                 
-                if self.mode == "HRV" and signal is not None:
+                # Expand whatever we found
+                if signal is not None:
                     signal = np.tile(signal, repeats)
-                    # For time, we need to extend it continuously
-                    # If we had original time, use it to find dt, else use fs
-                    dt = 1.0 / calculated_fs
-                    if time is not None and len(time) > 1:
-                        dt = np.median(np.diff(time))
-                    
-                    # Generate new time array
-                    new_len = len(signal)
-                    time = np.arange(new_len) * dt
-                    if time is None and new_len > 0: # Should be covered but safe check
-                         time = np.arange(new_len) / calculated_fs
-
-                elif self.mode != "HRV" and fhr is not None:
-                    # Tile FHR and UC
+                
+                if fhr is not None:
                     fhr = np.tile(fhr, repeats)
-                    if uc is not None:
-                        uc = np.tile(uc, repeats)
-                    
-                    # Extend time
-                    dt = 1.0 / calculated_fs
-                    if time is not None and len(time) > 1:
-                        dt = np.median(np.diff(time))
-                    
-                    new_len = len(fhr)
+
+                if uc is not None:
+                    uc = np.tile(uc, repeats)
+                
+                # Extend time
+                dt = 1.0 / calculated_fs
+                if time is not None and len(time) > 1:
+                     dt = np.median(np.diff(time))
+                
+                # New max length
+                new_len = 0
+                if signal is not None: new_len = len(signal)
+                elif fhr is not None: new_len = len(fhr)
+                
+                if new_len > 0:
                     time = np.arange(new_len) * dt
 
             self.finished.emit(time, signal, fhr, uc, calculated_fs)
